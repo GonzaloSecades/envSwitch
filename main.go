@@ -145,12 +145,36 @@ func applyEnvJsReplacements(content string, config *Config, isDist bool) string 
 		serverJSON = []byte(`{}`)
 	}
 
+	result := content
+
+	// Replace var urls = {...}; - need to find matching braces
+	urlsPattern := regexp.MustCompile(`var urls\s*=\s*\{`)
+	if loc := urlsPattern.FindStringIndex(result); loc != nil {
+		// Find the matching closing brace
+		start := loc[1] - 1 // position of opening {
+		depth := 0
+		end := start
+		for i := start; i < len(result); i++ {
+			if result[i] == '{' {
+				depth++
+			} else if result[i] == '}' {
+				depth--
+				if depth == 0 {
+					end = i
+					break
+				}
+			}
+		}
+		// Check for trailing semicolon
+		if end+1 < len(result) && result[end+1] == ';' {
+			end++
+		}
+		// Replace
+		result = result[:loc[0]] + fmt.Sprintf(`var urls = %s;`, string(serverJSON)) + result[end+1:]
+	}
+
+	// Simple replacements for the rest
 	replacements := []Replacement{
-		{
-			// var urls = {...};
-			Pattern:     regexp.MustCompile(`var urls\s*=\s*\{[^}]*\};?`),
-			Replacement: fmt.Sprintf(`var urls = %s;`, string(serverJSON)),
-		},
 		{
 			// var recaptchaKey = "...";
 			Pattern:     regexp.MustCompile(`var recaptchaKey\s*=\s*"[^"]*";?`),
@@ -163,12 +187,11 @@ func applyEnvJsReplacements(content string, config *Config, isDist bool) string 
 		},
 		{
 			// var walkMeUrl= "..."; (note: no space before = in original)
-			Pattern:     regexp.MustCompile(`var walkMeUrl\s*=\s*"[^"]*";?`),
+			Pattern:     regexp.MustCompile(`var walkMeUrl\s*=\s*"[^"]*"$`),
 			Replacement: fmt.Sprintf(`var walkMeUrl= "%s"`, config.WalkmeUrl),
 		},
 	}
 
-	result := content
 	for _, r := range replacements {
 		result = r.Pattern.ReplaceAllString(result, r.Replacement)
 	}

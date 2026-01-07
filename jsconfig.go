@@ -25,21 +25,28 @@ func LoadConfigFromJS(path string) (*Config, error) {
 	content := string(data)
 	config := &Config{}
 
-	// Try to extract server as a string first
+	// Try to extract server - could be a string or an object
 	serverStringRe := regexp.MustCompile(`server:\s*['"]([^'"]+)['"]`)
 	if matches := serverStringRe.FindStringSubmatch(content); len(matches) > 1 {
 		config.Server = matches[1]
 	} else {
-		// Try to extract server as an object (for envJs format)
-		serverObjRe := regexp.MustCompile(`server:\s*(\{[^}]+\})`)
-		if matches := serverObjRe.FindStringSubmatch(content); len(matches) > 1 {
-			// Parse the JS object - convert single quotes to double quotes for JSON
-			jsObj := matches[1]
-			jsonObj := regexp.MustCompile(`'`).ReplaceAllString(jsObj, `"`)
-			var serverMap map[string]interface{}
-			if err := json.Unmarshal([]byte(jsonObj), &serverMap); err == nil {
-				config.Server = serverMap
+		// Extract server as an object by finding individual fields
+		// Look for server: { ... } block and extract key-value pairs
+		serverMap := make(map[string]interface{})
+		
+		// Known server object fields
+		serverFields := []string{"quest", "agents", "bo", "tpv", "vault", "front"}
+		
+		for _, field := range serverFields {
+			// Match patterns like: quest: 'value' or quest: "value"
+			re := regexp.MustCompile(field + `:\s*['"]([^'"]+)['"]`)
+			if matches := re.FindStringSubmatch(content); len(matches) > 1 {
+				serverMap[field] = matches[1]
 			}
+		}
+		
+		if len(serverMap) > 0 {
+			config.Server = serverMap
 		}
 	}
 
