@@ -1,6 +1,6 @@
 # envswitch
 
-A fast Go-based environment switcher for AngularJS config files.
+A fast Go-based environment switcher for AngularJS config files with an **8-bit styled interactive CLI** 💙💛
 
 ## Why Go instead of Gulp?
 
@@ -20,6 +20,23 @@ go build -o envswitch.exe .
 
 ## Usage
 
+### Interactive Mode (Recommended) 🎮
+
+Run the interactive CLI with Boca Juniors themed colors:
+
+```bash
+go run . -i
+```
+
+This launches an 8-bit styled interface that guides you through:
+1. **App Selection** - Choose which app to configure (e.g., "The Vault")
+2. **Config Directory** - Paste the absolute path to your config files
+3. **Target File** - Paste the absolute path to the target file to modify
+4. **Environment Selection** - Choose between test, stress, etc.
+5. **Confirmation** - Review and execute the switch
+
+### Command Line Mode
+
 ```bash
 # Basic usage (like gulp switch --env test)
 envswitch --env test
@@ -29,16 +46,25 @@ envswitch --env test --config-dir ./my-configs --target ./src/serverConfig.js
 
 # For distribution builds
 envswitch --env prod --dist
+
+# Use JavaScript config files instead of JSON
+envswitch --env test --js --config-dir ./path/to/configs --target ./path/to/target.js
+
+# Dry run - see changes without applying them
+envswitch --env test --dry-run
 ```
 
 ## Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--env` | (required) | Environment name: test, stress, cfg, prod, etc. |
+| `-i` | `false` | Run in interactive mode with visual CLI |
+| `--env` | (required in CLI mode) | Environment name: test, stress, cfg, prod, etc. |
 | `--config-dir` | `./configs` | Directory containing `config.{env}.json` files |
 | `--target` | `./app/shared/services/web/serverConfig.js` | Target file to modify |
 | `--dist` | `false` | Set `isDist` to true |
+| `--js` | `false` | Use `.js` config files instead of `.json` |
+| `--dry-run` | `false` | Show what would be changed without modifying |
 
 ## Config Files
 
