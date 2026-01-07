@@ -1,0 +1,34 @@
+module.exports = function (gulp, paths, env, taskData) {
+    var gutil = require('gulp-util');
+    var stream = require('stream');
+
+    function string_src(filename, string) {
+
+        var src = stream.Readable({ objectMode: true })
+
+        src._read = function () {
+            this.push(new gutil.File({
+                cwd: "",
+                base: "",
+                path: filename,
+                contents: Buffer.from(string)
+            }));
+
+            this.push(null);
+        }
+
+        return src;
+    }
+
+    return function () {
+
+        return string_src("app/env.js", 'var urls = '
+            + JSON.stringify(taskData.config.server)
+            + '; var recaptchaKey = '
+            + JSON.stringify(taskData.config.google.recaptcha)
+            + '; var isDist = '
+            + (taskData.options._[0] === 'dist')
+            + '; var walkMeUrl= "' + taskData.config.walkmeUrl + '"')
+            .pipe(gulp.dest('.'));
+    }
+};
