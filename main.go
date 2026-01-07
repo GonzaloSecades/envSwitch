@@ -12,11 +12,12 @@ import (
 
 // Config represents the environment configuration
 type Config struct {
-	Server      string       `json:"server"`
-	QuestServer string       `json:"questServer"`
-	QuestFront  string       `json:"questFront"`
+	Server      interface{} `json:"server"` // Can be string or object
+	QuestServer string      `json:"questServer"`
+	QuestFront  string      `json:"questFront"`
 	Firebase    FirebaseConf `json:"firebase"`
 	Google      GoogleConf   `json:"google"`
+	WalkmeUrl   string       `json:"walkmeUrl"`
 }
 
 type FirebaseConf struct {
@@ -43,11 +44,12 @@ func main() {
 	// CLI flags
 	env := flag.String("env", "", "Environment name (test, stress, cfg, prod, etc.)")
 	configDir := flag.String("config-dir", "./configs", "Directory containing config.{env}.json files")
-	targetFile := flag.String("target", "./app/shared/services/web/serverConfig.js", "Target file to modify")
+	targetFile := flag.String("target", "./app/shared/services/web/serverConfig.js", "Target file to modify/generate")
 	isDist := flag.Bool("dist", false, "Set isDist to true")
 	useJS := flag.Bool("js", false, "Use .js config files instead of .json (parses your existing JS configs)")
 	dryRun := flag.Bool("dry-run", false, "Show what would be changed without modifying the file")
 	interactive := flag.Bool("i", false, "Run in interactive mode with visual CLI")
+	format := flag.String("format", "serverConfig", "Format: 'serverConfig' (Angular factory) or 'envJs' (var urls = {...})")
 	flag.Parse()
 
 	// Interactive mode
@@ -61,7 +63,7 @@ func main() {
 
 	if *env == "" {
 		fmt.Fprintln(os.Stderr, "Error: --env flag is required (or use -i for interactive mode)")
-		fmt.Fprintln(os.Stderr, "Usage: envswitch --env test [--config-dir ./configs] [--target ./path/to/serverConfig.js] [--dist] [--js] [--dry-run]")
+		fmt.Fprintln(os.Stderr, "Usage: envswitch --env test [--config-dir ./configs] [--target ./path/to/file.js] [--format serverConfig|envJs] [--dist] [--js] [--dry-run]")
 		fmt.Fprintln(os.Stderr, "       envswitch -i  (interactive mode)")
 		os.Exit(1)
 	}
@@ -91,8 +93,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Build replacements (preserve trailing commas where they exist)
-	result := applyReplacements(string(content), config, *isDist)
+	// Apply replacements based on format
+	var result string
+	switch *format {
+	case "envJs":
+		result = applyEnvJsReplacements(string(content), config, *isDist)
+	default: // "serverConfig"
+		result = applyReplacements(string(content), config, *isDist)
+	}
 
 	// Dry-run mode: show diff and exit
 	if *dryRun {
@@ -129,12 +137,57 @@ func loadConfig(path string) (*Config, error) {
 	return &config, nil
 }
 
-// applyReplacements applies all environment-specific replacements to content
+// applyEnvJsReplacements applies replacements for env.js format (var urls = {...}; var recaptchaKey = "..."; etc.)
+func applyEnvJsReplacements(content string, config *Config, isDist bool) string {
+	// Serialize the server/urls object to JSON
+	serverJSON, err := json.Marshal(config.Server)
+	if err != nil {
+		serverJSON = []byte(`{}`)
+	}
+
+	replacements := []Replacement{
+		{
+			// var urls = {...};
+			Pattern:     regexp.MustCompile(`var urls\s*=\s*\{[^}]*\};?`),
+			Replacement: fmt.Sprintf(`var urls = %s;`, string(serverJSON)),
+		},
+		{
+			// var recaptchaKey = "...";
+			Pattern:     regexp.MustCompile(`var recaptchaKey\s*=\s*"[^"]*";?`),
+			Replacement: fmt.Sprintf(`var recaptchaKey = "%s";`, config.Google.Recaptcha),
+		},
+		{
+			// var isDist = true/false;
+			Pattern:     regexp.MustCompile(`var isDist\s*=\s*(true|false);?`),
+			Replacement: fmt.Sprintf(`var isDist = %t;`, isDist),
+		},
+		{
+			// var walkMeUrl= "..."; (note: no space before = in original)
+			Pattern:     regexp.MustCompile(`var walkMeUrl\s*=\s*"[^"]*";?`),
+			Replacement: fmt.Sprintf(`var walkMeUrl= "%s"`, config.WalkmeUrl),
+		},
+	}
+
+	result := content
+	for _, r := range replacements {
+		result = r.Pattern.ReplaceAllString(result, r.Replacement)
+	}
+
+	return result
+}
+
+// applyReplacements applies all environment-specific replacements to content (serverConfig format)
 func applyReplacements(content string, config *Config, isDist bool) string {
+	// Handle Server as string (for serverConfig format)
+	serverStr := ""
+	if s, ok := config.Server.(string); ok {
+		serverStr = s
+	}
+
 	replacements := []Replacement{
 		{
 			Pattern:     regexp.MustCompile(`baseUrl:\s*['"][^'"]*['"],?`),
-			Replacement: fmt.Sprintf(`baseUrl: "%s",`, config.Server),
+			Replacement: fmt.Sprintf(`baseUrl: "%s",`, serverStr),
 		},
 		{
 			Pattern:     regexp.MustCompile(`questUrl:\s*['"][^'"]*['"],?`),

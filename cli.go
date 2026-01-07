@@ -90,6 +90,7 @@ type AppConfig struct {
 	TargetPath string `json:"targetPath"`
 	LastEnv    string `json:"lastEnv"`
 	UseJS      bool   `json:"useJS"`
+	Format     string `json:"format"` // "serverConfig" or "envJs"
 }
 
 // CLI states
@@ -107,6 +108,7 @@ const (
 	stateAddAppConfigDir
 	stateAddAppTargetPath
 	stateAddAppUseJS
+	stateAddAppFormat
 )
 
 // Menu options for app menu
@@ -125,6 +127,7 @@ type model struct {
 	targetPath       string
 	env              string
 	useJS            bool
+	format           string // "serverConfig" or "envJs"
 	textInput        textinput.Model
 	err              error
 	result           string
@@ -133,6 +136,7 @@ type model struct {
 	hasSavedConfig   bool
 	menuOption       int
 	newAppName       string
+	formatOption     int // 0 = serverConfig, 1 = envJs
 }
 
 // getConfigPath returns the path to the persistent config file
@@ -243,6 +247,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case stateAddAppUseJS:
 				m.useJS = !m.useJS
+			case stateAddAppFormat:
+				m.formatOption = 1 - m.formatOption // toggle between 0 and 1
+				if m.formatOption == 0 {
+					m.format = "serverConfig"
+				} else {
+					m.format = "envJs"
+				}
 			}
 		case "down", "j":
 			switch m.state {
@@ -256,6 +267,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case stateAddAppUseJS:
 				m.useJS = !m.useJS
+			case stateAddAppFormat:
+				m.formatOption = 1 - m.formatOption // toggle between 0 and 1
+				if m.formatOption == 0 {
+					m.format = "serverConfig"
+				} else {
+					m.format = "envJs"
+				}
 			}
 		case "enter":
 			return m.handleEnter()
@@ -323,6 +341,8 @@ func (m model) handleEsc() (tea.Model, tea.Cmd) {
 		m.state = stateAddAppTargetPath
 		m.textInput.SetValue(m.targetPath)
 		m.textInput.Placeholder = "Target file path..."
+	case stateAddAppFormat:
+		m.state = stateAddAppUseJS
 	}
 	return m, nil
 }
@@ -351,6 +371,10 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 			m.targetPath = savedConfig.TargetPath
 			m.env = savedConfig.LastEnv
 			m.useJS = savedConfig.UseJS
+			m.format = savedConfig.Format
+			if m.format == "" {
+				m.format = "serverConfig" // default
+			}
 			m.hasSavedConfig = savedConfig.ConfigDir != "" && savedConfig.TargetPath != ""
 		}
 
@@ -450,6 +474,7 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 			TargetPath: m.targetPath,
 			LastEnv:    m.env,
 			UseJS:      m.useJS,
+			Format:     m.format,
 		}
 		savePersistentConfig(m.persistentConfig)
 
@@ -459,6 +484,7 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 			m.targetPath,
 			m.env,
 			m.useJS,
+			m.format,
 		)
 		if err != nil {
 			m.err = err
@@ -512,11 +538,19 @@ func (m model) handleEnter() (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case stateAddAppUseJS:
+		// Go to format selection
+		m.state = stateAddAppFormat
+		m.formatOption = 0 // default to serverConfig
+		m.format = "serverConfig"
+		return m, nil
+
+	case stateAddAppFormat:
 		// Save the new app
 		m.persistentConfig.Apps[m.newAppName] = AppConfig{
 			ConfigDir:  m.configDir,
 			TargetPath: m.targetPath,
 			UseJS:      m.useJS,
+			Format:     m.format,
 		}
 		savePersistentConfig(m.persistentConfig)
 		m.apps = getAppNames(m.persistentConfig)
@@ -583,6 +617,8 @@ func (m model) View() string {
 		s.WriteString(m.viewAddAppTargetPath())
 	case stateAddAppUseJS:
 		s.WriteString(m.viewAddAppUseJS())
+	case stateAddAppFormat:
+		s.WriteString(m.viewAddAppFormat())
 	}
 
 	return s.String()
@@ -748,8 +784,9 @@ func (m model) viewConfirm() string {
 			"  Environment: %s\n"+
 			"  Config Dir:  %s\n"+
 			"  Target:      %s\n"+
-			"  Use JS:      %t",
-		appName, m.env, m.configDir, m.targetPath, m.useJS,
+			"  Use JS:      %t\n"+
+			"  Format:      %s",
+		appName, m.env, m.configDir, m.targetPath, m.useJS, m.format,
 	))
 	s.WriteString(info)
 	s.WriteString("\n\n")
@@ -896,8 +933,59 @@ func (m model) viewAddAppUseJS() string {
 	return s.String()
 }
 
+func (m model) viewAddAppFormat() string {
+	var s strings.Builder
+
+	header := promptStyle.Render(fmt.Sprintf("  ➕ Add New App: %s", m.newAppName))
+	s.WriteString(header)
+	s.WriteString("\n\n")
+
+	configInfo := lipgloss.NewStyle().Foreground(greenColor).Render(fmt.Sprintf("  ✓ Config dir: %s", m.configDir))
+	s.WriteString(configInfo)
+	s.WriteString("\n")
+	targetInfo := lipgloss.NewStyle().Foreground(greenColor).Render(fmt.Sprintf("  ✓ Target: %s", m.targetPath))
+	s.WriteString(targetInfo)
+	s.WriteString("\n")
+	jsInfo := lipgloss.NewStyle().Foreground(greenColor).Render(fmt.Sprintf("  ✓ Use JS: %t", m.useJS))
+	s.WriteString(jsInfo)
+	s.WriteString("\n\n")
+
+	prompt := lipgloss.NewStyle().Foreground(whiteColor).Render("  Select target file format:")
+	s.WriteString(prompt)
+	s.WriteString("\n\n")
+
+	formats := []struct {
+		value string
+		label string
+		desc  string
+	}{
+		{"serverConfig", "serverConfig", "Angular factory (baseUrl, questUrl, etc.)"},
+		{"envJs", "envJs", "var urls = {...}; var recaptchaKey = ..."},
+	}
+
+	for i, f := range formats {
+		cursor := "  "
+		style := normalStyle
+		if i == m.formatOption {
+			cursor = "▸ "
+			style = selectedStyle
+		}
+		line := fmt.Sprintf("%s%s", cursor, style.Render(f.label))
+		line += savedPathStyle.Render(fmt.Sprintf(" - %s", f.desc))
+		s.WriteString(line)
+		s.WriteString("\n")
+	}
+
+	s.WriteString("\n")
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+	s.WriteString(helpStyle.Render("  ↑/↓: toggle • enter: confirm • esc: back"))
+	s.WriteString("\n")
+
+	return s.String()
+}
+
 // executeSwitchNew runs the actual environment switch
-func executeSwitchNew(configDir, targetPath, env string, useJS bool) error {
+func executeSwitchNew(configDir, targetPath, env string, useJS bool, format string) error {
 	var config *Config
 	var err error
 	var configPath string
@@ -933,7 +1021,13 @@ func executeSwitchNew(configDir, targetPath, env string, useJS bool) error {
 		return fmt.Errorf("reading target file %s: %v", targetPath, err)
 	}
 
-	result := applyReplacements(string(content), config, false)
+	var result string
+	switch format {
+	case "envJs":
+		result = applyEnvJsReplacements(string(content), config, false)
+	default: // "serverConfig"
+		result = applyReplacements(string(content), config, false)
+	}
 
 	err = os.WriteFile(targetPath, []byte(result), 0644)
 	if err != nil {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"regexp"
 )
@@ -10,7 +11,7 @@ import (
 //
 //	module.exports = function () {
 //	    return {
-//	        server: 'value',
+//	        server: 'value' OR server: { key: 'value', ... },
 //	        questServer: 'value',
 //	        ...
 //	    }
@@ -24,14 +25,32 @@ func LoadConfigFromJS(path string) (*Config, error) {
 	content := string(data)
 	config := &Config{}
 
+	// Try to extract server as a string first
+	serverStringRe := regexp.MustCompile(`server:\s*['"]([^'"]+)['"]`)
+	if matches := serverStringRe.FindStringSubmatch(content); len(matches) > 1 {
+		config.Server = matches[1]
+	} else {
+		// Try to extract server as an object (for envJs format)
+		serverObjRe := regexp.MustCompile(`server:\s*(\{[^}]+\})`)
+		if matches := serverObjRe.FindStringSubmatch(content); len(matches) > 1 {
+			// Parse the JS object - convert single quotes to double quotes for JSON
+			jsObj := matches[1]
+			jsonObj := regexp.MustCompile(`'`).ReplaceAllString(jsObj, `"`)
+			var serverMap map[string]interface{}
+			if err := json.Unmarshal([]byte(jsonObj), &serverMap); err == nil {
+				config.Server = serverMap
+			}
+		}
+	}
+
 	// Simple extractors for top-level string values
 	simpleExtractors := []struct {
 		pattern string
 		target  *string
 	}{
-		{`server:\s*['"]([^'"]+)['"]`, &config.Server},
 		{`questServer:\s*['"]([^'"]+)['"]`, &config.QuestServer},
 		{`questFront:\s*['"]([^'"]+)['"]`, &config.QuestFront},
+		{`walkmeUrl:\s*['"]([^'"]+)['"]`, &config.WalkmeUrl},
 	}
 
 	for _, ext := range simpleExtractors {
