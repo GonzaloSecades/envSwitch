@@ -1,0 +1,18 @@
+{
+  "server": "https://stress-api.example.com",
+  "questServer": "https://stress-quest.example.com",
+  "questFront": "https://stress-front.example.com",
+  "firebase": {
+    "apiKey": "stress-firebase-api-key",
+    "authDomain": "stress-app.firebaseapp.com",
+    "databaseURL": "https://stress-app.firebaseio.com",
+    "storageBucket": "stress-app.appspot.com",
+    "messagingSenderId": "987654321"
+  },
+  "google": {
+    "mapsKey": "stress-maps-key",
+    "analytics": "UA-STRESS-1",
+    "recaptcha": "stress-recaptcha-site-key"
+  }
+}
+

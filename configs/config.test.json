@@ -1,0 +1,18 @@
+{
+  "server": "https://test-api.example.com",
+  "questServer": "https://test-quest.example.com",
+  "questFront": "https://test-front.example.com",
+  "firebase": {
+    "apiKey": "test-firebase-api-key",
+    "authDomain": "test-app.firebaseapp.com",
+    "databaseURL": "https://test-app.firebaseio.com",
+    "storageBucket": "test-app.appspot.com",
+    "messagingSenderId": "123456789"
+  },
+  "google": {
+    "mapsKey": "test-maps-key",
+    "analytics": "UA-TEST-1",
+    "recaptcha": "test-recaptcha-site-key"
+  }
+}
+

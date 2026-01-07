@@ -1,0 +1,41 @@
+# Compiled binaries
+envswitch
+envswitch.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build output directory
+dist/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Local test files (keep the structure, ignore content changes)
+test/serverConfig.js
+
+# Local config overrides (users can create their own)
+configs/*.local.json
+
